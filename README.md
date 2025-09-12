@@ -9,6 +9,7 @@ A comprehensive Streamlit web application for searching and filtering papers fro
 - **Exact phrase search**: Use quotes for exact matches
 - **Multi-field search**: Search across titles, abstracts, and authors
 - **Case-insensitive**: All searches are case-insensitive
+- **Fuzzy matching**: Optional approximate matches using RapidFuzz
 
 ### 🏷️ Filtering Options
 - **Year range**: Filter papers by publication year

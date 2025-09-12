@@ -16,6 +16,8 @@ class SearchRequest(BaseModel):
     year_range: Optional[tuple[int, int]] = None
     venues: Optional[List[str]] = None
     limit: int = 100
+    fuzzy: bool = False
+    fuzzy_threshold: int = 80
 
 class SearchResponse(BaseModel):
     results: List[Dict[str, Any]]
@@ -120,7 +122,9 @@ async def search_papers(request: SearchRequest):
             query=request.query,
             fields=request.fields,
             filters=filters,
-            limit=request.limit
+            limit=request.limit,
+            fuzzy=request.fuzzy,
+            fuzzy_threshold=request.fuzzy_threshold
         )
         
         search_time = time.time() - start_time
@@ -170,7 +174,9 @@ async def search_papers_get(
     year_min: Optional[int] = Query(None, description="Minimum year"),
     year_max: Optional[int] = Query(None, description="Maximum year"),
     venues: Optional[str] = Query(None, description="Comma-separated venues"),
-    limit: int = Query(100, description="Maximum results")
+    limit: int = Query(100, description="Maximum results"),
+    fuzzy: bool = Query(False, description="Enable fuzzy matching"),
+    fuzzy_threshold: int = Query(80, description="Fuzzy matching threshold")
 ):
     """GET endpoint for search (for easy testing)"""
     
@@ -185,7 +191,9 @@ async def search_papers_get(
         fields=fields_list,
         year_range=year_range,
         venues=venues_list,
-        limit=limit
+        limit=limit,
+        fuzzy=fuzzy,
+        fuzzy_threshold=fuzzy_threshold
     )
     
     return await search_papers(request)

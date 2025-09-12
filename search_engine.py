@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Set, Optional
 from dataclasses import dataclass
 from acl_anthology import Anthology
 import time
+from rapidfuzz import fuzz
 
 
 @dataclass
@@ -92,7 +93,11 @@ class BooleanSearchEngine:
         
         return text_data
     
-    def _matches_query(self, text_data: Dict[str, str], parsed_query: Dict[str, Any]) -> tuple:
+    def _matches_query(self,
+                        text_data: Dict[str, str],
+                        parsed_query: Dict[str, Any],
+                        fuzzy: bool = False,
+                        fuzzy_threshold: int = 80) -> tuple:
         """Check if paper matches the boolean query"""
         terms = parsed_query["terms"]
         operators = parsed_query["operators"]
@@ -109,9 +114,17 @@ class BooleanSearchEngine:
             term_fields = []
             
             for field, text in text_data.items():
-                if term in text:
-                    term_match = True
-                    term_fields.append(field)
+                if fuzzy:
+                    try:
+                        if fuzz.partial_ratio(term, text) >= fuzzy_threshold:
+                            term_match = True
+                            term_fields.append(field)
+                    except Exception:
+                        pass
+                else:
+                    if term in text:
+                        term_match = True
+                        term_fields.append(field)
             
             match_results.append(term_match)
             if term_match:
@@ -136,11 +149,13 @@ class BooleanSearchEngine:
         
         return result, list(set(match_fields))
     
-    def search(self, 
-               query: str, 
+    def search(self,
+               query: str,
                fields: List[str] = ["title", "abstract", "authors"],
                filters: Optional[Dict[str, Any]] = None,
-               limit: Optional[int] = None) -> List[SearchResult]:
+               limit: Optional[int] = None,
+               fuzzy: bool = False,
+               fuzzy_threshold: int = 80) -> List[SearchResult]:
         """
         Search papers using boolean keywords
         
@@ -169,7 +184,9 @@ class BooleanSearchEngine:
             text_data = self._extract_text_from_paper(paper, fields)
             
             # Check if paper matches query
-            matches, match_fields = self._matches_query(text_data, parsed_query)
+            matches, match_fields = self._matches_query(
+                text_data, parsed_query, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold
+            )
             
             if matches:
                 result = SearchResult(

@@ -45,7 +45,7 @@ def test_search_engine():
             print(f"   Year: {result.year}, Venue: {', '.join(result.venue)}")
             print(f"   Matches: {', '.join(result.match_fields)}")
             print()
-    
+
     # Test filters
     print(f"\n{'='*60}")
     print("Testing filters: attention + year 2020-2023")
@@ -61,6 +61,18 @@ def test_search_engine():
     print(f"Found {len(filtered_results)} results")
     for result in filtered_results:
         print(f"- {result.title} ({result.year})")
+
+    # Fuzzy search test
+    print(f"\n{'='*60}")
+    print("Testing fuzzy search: 'transfomer'")
+    print('='*60)
+    fuzzy_results = engine.search(
+        query="transfomer",
+        fields=["title"],
+        limit=5,
+        fuzzy=True
+    )
+    print(f"Found {len(fuzzy_results)} results with fuzzy matching")
 
 
 if __name__ == "__main__":
