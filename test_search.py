@@ -20,6 +20,7 @@ def test_search_engine():
         "attention OR transformer",
         '"neural machine translation"',
         "BERT OR GPT",
+        "(BERT OR GPT) AND transformer",
         "attention NOT model"
     ]
     
@@ -45,7 +46,7 @@ def test_search_engine():
             print(f"   Year: {result.year}, Venue: {', '.join(result.venue)}")
             print(f"   Matches: {', '.join(result.match_fields)}")
             print()
-    
+
     # Test filters
     print(f"\n{'='*60}")
     print("Testing filters: attention + year 2020-2023")
@@ -61,6 +62,34 @@ def test_search_engine():
     print(f"Found {len(filtered_results)} results")
     for result in filtered_results:
         print(f"- {result.title} ({result.year})")
+
+    # Fuzzy search test
+    print(f"\n{'='*60}")
+    print("Testing fuzzy search: 'transfomer'")
+    print('='*60)
+    fuzzy_results = engine.search(
+        query="transfomer",
+        fields=["title"],
+        limit=5,
+        fuzzy=True
+    )
+    print(f"Found {len(fuzzy_results)} results with fuzzy matching")
+
+    # Exact word match test
+    print(f"\n{'='*60}")
+    print('Testing exact word match: lingu vs "lingu"')
+    print('='*60)
+    unquoted = engine.search(
+        query="lingu",
+        fields=["title"],
+        limit=5
+    )
+    quoted = engine.search(
+        query='"lingu"',
+        fields=["title"],
+        limit=5
+    )
+    print(f"Unquoted results: {len(unquoted)}; Quoted results: {len(quoted)}")
 
 
 if __name__ == "__main__":

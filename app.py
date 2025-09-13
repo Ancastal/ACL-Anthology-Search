@@ -219,11 +219,22 @@ def create_filters_sidebar(search_engine: BooleanSearchEngine) -> Dict[str, Any]
             help="Limit the number of search results"
         )
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # Fuzzy matching toggle
+    with st.sidebar.container():
+        st.markdown('<div class="filter-section">', unsafe_allow_html=True)
+        fuzzy_match = st.checkbox(
+            "Enable fuzzy matching",
+            value=False,
+            help="Allow approximate matches using RapidFuzz"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
     
     return {
         "search_fields": search_fields,
         "filters": filters,
-        "limit": results_limit
+        "limit": results_limit,
+        "fuzzy_match": fuzzy_match
     }
 
 
@@ -327,7 +338,8 @@ def main():
                     query=query,
                     fields=filter_config["search_fields"],
                     filters=filter_config["filters"],
-                    limit=filter_config["limit"]
+                    limit=filter_config["limit"],
+                    fuzzy=filter_config["fuzzy_match"]
                 )
                 
                 search_time = time.time() - start_time

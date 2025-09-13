@@ -6,9 +6,11 @@ A comprehensive Streamlit web application for searching and filtering papers fro
 
 ### 🔍 Advanced Search
 - **Boolean operators**: AND, OR, NOT
-- **Exact phrase search**: Use quotes for exact matches
+- **Grouping with parentheses**
+- **Exact phrase search**: Use quotes to match whole words or phrases only
 - **Multi-field search**: Search across titles, abstracts, and authors
 - **Case-insensitive**: All searches are case-insensitive
+- **Fuzzy matching**: Optional approximate matches using RapidFuzz
 
 ### 🏷️ Filtering Options
 - **Year range**: Filter papers by publication year
