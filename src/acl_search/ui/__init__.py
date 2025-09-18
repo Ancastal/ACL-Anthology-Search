@@ -1,3 +1,3 @@
 """
-User interface components
+API server for ACL Anthology Search
 """

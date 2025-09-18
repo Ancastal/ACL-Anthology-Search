@@ -25,7 +25,6 @@ dependencies = [
     "acl-anthology",
     "rapidfuzz",
     "requests",
-    "streamlit",
     "fastapi",
     "uvicorn",
     "pandas",

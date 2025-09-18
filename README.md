@@ -129,10 +129,10 @@ This application uses data from the [ACL Anthology](https://aclanthology.org/), 
 ```
 ├── src/acl_search/              # Main Python package
 │   ├── core/                    # Search engine logic
-│   ├── providers/               # Metadata providers
-│   └── ui/                      # API server
-├── frontend/react-app/          # Next.js frontend
-├── tests/                       # Test suite
+│   ├── providers/               # Metadata providers (OpenAlex, Crossref, Semantic Scholar)
+│   └── ui/                      # FastAPI backend server
+├── frontend/react-app/          # Next.js frontend application
+├── tests/                       # Test suite (unit & integration)
 ├── docs/                        # Documentation
 └── scripts/                     # Utility scripts
 ```
