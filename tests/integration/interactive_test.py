@@ -13,7 +13,7 @@ import sys
 import json
 from typing import Dict, Any, List
 from unittest.mock import patch
-from search_engine import BooleanSearchEngine
+from acl_search.core.search_engine import BooleanSearchEngine
 
 
 class InteractiveTestSuite:

@@ -8,7 +8,7 @@ requiring the full ACL Anthology dataset to be loaded.
 
 import unittest
 from unittest.mock import Mock, patch
-from search_engine import BooleanSearchEngine
+from acl_search.core.search_engine import BooleanSearchEngine
 
 
 class TestSearchOperatorsSimple(unittest.TestCase):

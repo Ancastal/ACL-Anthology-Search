@@ -8,8 +8,8 @@ from typing import List, Optional, Dict, Any
 import asyncio
 import threading
 import os
-from search_engine import BooleanSearchEngine, SearchResult
-from metadata_providers import ExternalMetadataProvider
+from acl_search.core.search_engine import BooleanSearchEngine, SearchResult
+from acl_search.providers.metadata_providers import ExternalMetadataProvider
 
 # OpenAI integration
 try:

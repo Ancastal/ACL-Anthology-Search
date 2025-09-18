@@ -1,0 +1,3 @@
+"""
+Core search engine functionality
+"""

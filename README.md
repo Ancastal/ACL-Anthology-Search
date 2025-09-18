@@ -1,6 +1,6 @@
 # ACL Anthology Search
 
-A comprehensive Streamlit web application for searching and filtering papers from the ACL Anthology using boolean keywords across multiple fields.
+A modern web application for searching and filtering papers from the ACL Anthology using boolean keywords across multiple fields. Features a Next.js frontend with Python backend API.
 
 ## Features
 
@@ -20,30 +20,77 @@ A comprehensive Streamlit web application for searching and filtering papers fro
 ### 📊 Results Display
 - **Rich metadata**: Title, authors, year, venue, and abstracts
 - **Match highlights**: Shows which fields matched your query
-- **CSV export**: Download search results as CSV
-- **Author management**: Smart display for papers with many authors
- - **External enrichment (optional)**: Citation counts and related works via OpenAlex/Semantic Scholar
+- **Modern UI**: Clean, responsive design with Next.js
+- **Real-time search**: Fast, interactive search experience
+- **External enrichment**: Citation counts and related works via OpenAlex/Crossref/Semantic Scholar
 
-## Installation
+## Installation & Setup
 
-1. Clone or download this repository
-2. Install dependencies:
+### Prerequisites
+- Python 3.8+
+- Node.js 18+
+- npm or yarn
+
+### Backend Setup
+1. Clone this repository
+2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Run the Streamlit App
+### Frontend Setup
+1. Navigate to the frontend directory:
 ```bash
-streamlit run app.py
+cd frontend/react-app
+```
+2. Install Node.js dependencies:
+```bash
+npm install
 ```
 
-Tip: Toggle "Show citation counts and related works" to enrich results (may be slower on first fetch).
+## Usage
 
-### Command Line Testing
+### Development Mode
+
+**Option 1: One Command (Recommended)**
 ```bash
-python test_search.py
+make run
+```
+This starts both backend (port 8000) and frontend (port 3000) automatically.
+
+**Option 2: Manual Setup**
+1. **Start the Backend API Server**:
+```bash
+python -m uvicorn src.acl_search.ui.api_server:app --reload --port 8000
+```
+
+2. **Start the Frontend Development Server**:
+```bash
+cd frontend/react-app
+npm run dev
+```
+
+3. **Open your browser** to `http://localhost:3000`
+
+### Production Mode
+
+1. **Build the frontend**:
+```bash
+cd frontend/react-app
+npm run build
+npm start
+```
+
+2. **Start the backend**:
+```bash
+python -m uvicorn src.acl_search.ui.api_server:app --host 0.0.0.0 --port 8000
+```
+
+### Testing
+```bash
+make test
+# or
+python -m pytest tests/
 ```
 
 ## Search Examples
@@ -69,21 +116,26 @@ This application uses data from the [ACL Anthology](https://aclanthology.org/), 
 
 ## Technical Details
 
-- **Backend**: Python with acl-anthology library
-- **Frontend**: Streamlit
+- **Backend**: Python FastAPI with acl-anthology library
+- **Frontend**: Next.js 15 with React 19 and TypeScript
 - **Search Engine**: Custom boolean search implementation
-- **Caching**: Streamlit resource caching for performance
+- **Styling**: Tailwind CSS v4
+- **API**: RESTful API with automatic documentation
 - **Data Loading**: Automatically downloads ACL Anthology data on first run
- - **External Metadata**: Optional integration with OpenAlex and Semantic Scholar (with local caching)
+- **External Metadata**: Integration with OpenAlex, Crossref, and Semantic Scholar (with local caching)
 
-## Files
+## Project Structure
 
-- `app.py` - Main Streamlit application
-- `search_engine.py` - Core search functionality with boolean operations
-- `test_search.py` - Test script for search engine
-- `explore_acl.py` - Data exploration script
-- `requirements.txt` - Python dependencies
- - `metadata_providers.py` - External metadata (OpenAlex/Semantic Scholar) with local caching
+```
+├── src/acl_search/              # Main Python package
+│   ├── core/                    # Search engine logic
+│   ├── providers/               # Metadata providers
+│   └── ui/                      # API server
+├── frontend/react-app/          # Next.js frontend
+├── tests/                       # Test suite
+├── docs/                        # Documentation
+└── scripts/                     # Utility scripts
+```
 
 ## Performance
 

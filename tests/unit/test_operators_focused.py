@@ -8,7 +8,7 @@ comprehensive coverage and easy debugging.
 
 import unittest
 from unittest.mock import Mock, patch
-from search_engine import BooleanSearchEngine
+from acl_search.core.search_engine import BooleanSearchEngine
 
 
 class TestANDOperator(unittest.TestCase):

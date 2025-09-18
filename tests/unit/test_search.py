@@ -3,7 +3,7 @@
 Test script for the search engine
 """
 
-from search_engine import BooleanSearchEngine
+from acl_search.core.search_engine import BooleanSearchEngine
 import time
 
 

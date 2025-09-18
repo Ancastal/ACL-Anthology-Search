@@ -3,8 +3,8 @@ Streamlit app for searching ACL Anthology papers
 """
 import streamlit as st
 import pandas as pd
-from search_engine import BooleanSearchEngine, SearchResult
-from metadata_providers import ExternalMetadataProvider
+from acl_search.core.search_engine import BooleanSearchEngine, SearchResult
+from acl_search.providers.metadata_providers import ExternalMetadataProvider
 from typing import List, Dict, Any
 import time
 

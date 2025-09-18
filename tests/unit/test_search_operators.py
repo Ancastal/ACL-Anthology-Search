@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 from typing import List, Dict, Any
 import time
 
-from search_engine import BooleanSearchEngine, SearchResult
+from acl_search.core.search_engine import BooleanSearchEngine, SearchResult
 
 
 class MockPaper:

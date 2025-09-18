@@ -39,12 +39,16 @@ ENV/
 .env.test.local
 .env.production.local
 
-# Node.js
-acl-search-frontend/node_modules/
-acl-search-frontend/.next/
-acl-search-frontend/out/
-acl-search-frontend/build/
-acl-search-frontend/.env*.local
+# Node.js / Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*.local
+frontend/react-app/node_modules/
+frontend/react-app/.next/
+frontend/react-app/out/
+frontend/react-app/build/
 
 # Logs
 *.log
