@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ExternalLink, Users, Calendar, MapPin, FileText, Tag, Download, Eye, EyeOff, Copy, BookMarked, Info, Loader } from 'lucide-react'
+import ResultsViz from './ResultsViz'
 
 interface SearchResult {
   paper_id: string
@@ -13,6 +14,8 @@ interface SearchResult {
   url: string
   match_fields: string[]
   doi?: string | null
+  score?: number | null
+  source?: string
   metadata?: {
     provider?: string | null
     citations_count?: number | null
@@ -50,10 +53,11 @@ function formatAuthors(authors: string[], maxDisplay: number = 3): string {
   return `${authors.slice(0, maxDisplay).join(', ')} et al. (${authors.length} total)`
 }
 
-function ResultCard({ result, index, showAbstract }: { 
+function ResultCard({ result, index, showAbstract, onAuthorClick }: { 
   result: SearchResult, 
   index: number, 
-  showAbstract: boolean 
+  showAbstract: boolean,
+  onAuthorClick: (name: string) => void,
 }) {
   const [abstractExpanded, setAbstractExpanded] = useState(false)
   const [metadata, setMetadata] = useState<SearchResult['metadata'] | null>(null)
@@ -164,27 +168,64 @@ function ResultCard({ result, index, showAbstract }: {
           {index}
         </div>
         <div className="flex-grow">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">
-            <a 
-              href={result.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hover:text-blue-600 transition-colors"
-            >
-              {result.title}
-            </a>
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 leading-tight flex-1">
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-600 transition-colors"
+              >
+                {result.title}
+              </a>
+            </h3>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Source badge */}
+              {result.source && (
+                <div className={`flex items-center gap-1 p-2 rounded text-sm font-medium ${
+                  result.source === 'arXiv'
+                    ? 'bg-green-50 text-green-600'
+                    : 'bg-blue-50 text-blue-600'
+                }`}>
+                  <span>{result.source === 'arXiv' ? 'arXiv' : 'ACL'}</span>
+                </div>
+              )}
+
+              {/* Year badge */}
+              <div className="flex items-center gap-1 p-2 bg-gray-50 text-gray-600 rounded text-sm font-medium">
+                <Calendar className="w-4 h-4" />
+                <span>{result.year}</span>
+              </div>
+            </div>
+          </div>
           
           {/* Metadata */}
           <div className="space-y-2">
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-1">
-                <Users className="w-4 h-4" />
-                <span>{formatAuthors(result.authors)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                <span>{result.year}</span>
+            <div className="flex items-center gap-1 text-sm text-gray-600">
+              <Users className="w-4 h-4 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                {result.authors.length <= 3 ? (
+                  <span className="truncate block">
+                    {result.authors.map((a, i) => (
+                      <span key={`${a}-${i}`}>
+                        <button onClick={() => onAuthorClick(a)} className="text-blue-600 hover:text-blue-800 hover:underline">
+                          {a}
+                        </button>{i < result.authors.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="truncate block">
+                    {result.authors.slice(0, 2).map((a, i) => (
+                      <span key={`${a}-${i}`}>
+                        <button onClick={() => onAuthorClick(a)} className="text-blue-600 hover:text-blue-800 hover:underline">
+                          {a}
+                        </button>{i < 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                    <span className="text-gray-500"> et al. ({result.authors.length} total)</span>
+                  </span>
+                )}
               </div>
             </div>
             
@@ -360,6 +401,7 @@ function ResultCard({ result, index, showAbstract }: {
 
 export default function SearchResults({ results }: SearchResultsProps) {
   const [showAbstracts, setShowAbstracts] = useState(true)
+  const [authorModal, setAuthorModal] = useState<string | null>(null)
 
   // Trigger Zotero detection after results load
   useEffect(() => {
@@ -530,6 +572,11 @@ export default function SearchResults({ results }: SearchResultsProps) {
         </div>
       </div>
 
+      {/* Visualizations */}
+      <div className="mb-6">
+        <ResultsViz results={results.results} />
+      </div>
+
       {/* Results list */}
       <div className="space-y-4">
         {results.results.map((result, index) => (
@@ -538,9 +585,18 @@ export default function SearchResults({ results }: SearchResultsProps) {
             result={result}
             index={index + 1}
             showAbstract={showAbstracts}
+            onAuthorClick={(name) => setAuthorModal(name)}
           />
         ))}
       </div>
+      {authorModal && (
+        <div>
+          {(() => {
+            const AuthorModal = require('./AuthorModal').default
+            return <AuthorModal name={authorModal} onClose={() => setAuthorModal(null)} />
+          })()}
+        </div>
+      )}
 
       {/* Footer info */}
       {results.total_count >= 1000 && (

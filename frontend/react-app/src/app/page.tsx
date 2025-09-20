@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import SearchBar from '@/components/SearchBar'
 import SearchFilters from '@/components/SearchFilters'
 import SearchResults from '@/components/SearchResults'
+import QueryBuilder from '@/components/QueryBuilder'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { Search, BookOpen, Database, Clock } from 'lucide-react'
+import { Search, BookOpen, Database, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface SearchFilters {
   fields: string[]
@@ -24,6 +25,8 @@ interface SearchResult {
   url: string
   match_fields: string[]
   doi?: string | null
+  score?: number | null
+  source?: string
   metadata?: {
     provider?: string | null
     citations_count?: number | null
@@ -65,7 +68,13 @@ export default function Home() {
   const [apiStats, setApiStats] = useState<ApiStats | null>(null)
   const [apiReady, setApiReady] = useState(false)
   const [fuzzyEnabled, setFuzzyEnabled] = useState(false)
+  const [sortBy, setSortBy] = useState<'relevance' | 'year'>('relevance')
+  const [semanticEnabled, setSemanticEnabled] = useState(false)
+  const [semanticMode, setSemanticMode] = useState<'rerank' | 'hybrid'>('rerank')
+  const [semanticTopK, setSemanticTopK] = useState<number>(200)
   const [searchEngine, setSearchEngine] = useState<string>('unknown')
+  const [queryBuilderOpen, setQueryBuilderOpen] = useState(false)
+  const [searchSources, setSearchSources] = useState<string[]>(['acl'])
   
   const [filters, setFilters] = useState<SearchFilters>({
     fields: ['title', 'abstract', 'authors'],
@@ -162,7 +171,12 @@ export default function Home() {
         year_range: filters.yearRange,
         venues: filters.venues.length > 0 ? filters.venues : null,
         limit: filters.limit,
-        fuzzy: fuzzyEnabled
+        fuzzy: fuzzyEnabled,
+        sort: sortBy,
+        semantic: semanticEnabled,
+        semantic_mode: semanticMode,
+        semantic_top_k: semanticTopK,
+        sources: searchSources
       }
 
       const response = await fetch('http://127.0.0.1:8000/search', {
@@ -256,6 +270,27 @@ export default function Home() {
                 onSearch={handleSearch}
                 loading={loading}
               />
+              {/* Query Builder Toggle */}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setQueryBuilderOpen(!queryBuilderOpen)}
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  {queryBuilderOpen ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  Query Builder
+                </button>
+
+                {queryBuilderOpen && (
+                  <div className="mt-3 relative z-10">
+                    <QueryBuilder onChange={setQuery} initialQuery={query} />
+                  </div>
+                )}
+              </div>
               
               {/* Fuzzy matching toggle */}
               <div className="mt-4 pt-4 border-t border-gray-100">
@@ -278,7 +313,135 @@ export default function Home() {
                 <p className="text-xs text-gray-500 mt-1 ml-7">
                   Find word variations and similar terms using basic fuzzy matching.
                 </p>
-
+                {/* Semantic search */}
+                <div className="mt-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={semanticEnabled}
+                      onChange={(e) => setSemanticEnabled(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-700">
+                        Semantic Search
+                      </span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                        EXPERIMENTAL
+                      </span>
+                    </div>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1 ml-7">
+                    Find semantically similar papers using embedding-based similarity.
+                  </p>
+                  {semanticEnabled && (
+                    <div className="mt-2 ml-7 flex flex-wrap items-center gap-3">
+                      <label className="text-sm text-gray-700">Mode</label>
+                      <select
+                        value={semanticMode}
+                        onChange={(e) => setSemanticMode(e.target.value as 'rerank' | 'hybrid')}
+                        className="px-2 py-1 text-sm border border-gray-300 rounded"
+                      >
+                        <option value="rerank">Re-rank top-K</option>
+                        <option value="hybrid">Hybrid (combine)</option>
+                      </select>
+                      <label className="text-sm text-gray-700">Top-K</label>
+                      <input
+                        type="number"
+                        min={10}
+                        max={1000}
+                        value={semanticTopK}
+                        onChange={(e) => setSemanticTopK(parseInt(e.target.value) || 200)}
+                        className="w-24 px-2 py-1 text-sm border border-gray-300 rounded"
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* Search Sources Selection */}
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-gray-700 mb-3 block">
+                    Search Sources
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={searchSources.includes('acl')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSearchSources([...searchSources, 'acl'])
+                          } else {
+                            const newSources = searchSources.filter(s => s !== 'acl')
+                            if (newSources.length > 0) {
+                              setSearchSources(newSources)
+                            }
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700">ACL Anthology</span>
+                        <div className="relative group">
+                          <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center cursor-help border border-gray-300 hover:bg-gray-200 transition-colors duration-200">
+                            <span className="text-xs text-gray-600 font-bold">?</span>
+                          </div>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-out bg-gray-900 text-white text-sm rounded py-2 px-3 z-50 shadow-xl pointer-events-none">
+                            <div className="w-80 text-center">
+                              Official repository of computational linguistics papers (113,000+ papers)
+                            </div>
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={searchSources.includes('arxiv')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSearchSources([...searchSources, 'arxiv'])
+                          } else {
+                            const newSources = searchSources.filter(s => s !== 'arxiv')
+                            if (newSources.length > 0) {
+                              setSearchSources(newSources)
+                            }
+                          }
+                        }}
+                        className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700">arXiv</span>
+                        <div className="relative group">
+                          <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center cursor-help border border-gray-300 hover:bg-gray-200 transition-colors duration-200">
+                            <span className="text-xs text-gray-600 font-bold">?</span>
+                          </div>
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-out bg-gray-900 text-white text-sm rounded py-2 px-3 z-50 shadow-xl pointer-events-none">
+                            <div className="w-80 text-center">
+                              Pre-print repository covering all scientific fields (2M+ papers)
+                            </div>
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Select one or both sources. arXiv includes pre-prints from all scientific fields.
+                  </p>
+                </div>
+                {/* Sort controls */}
+                <div className="mt-4 flex items-center gap-3 ml-1">
+                  <label className="text-sm text-gray-700">Sort by</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'relevance' | 'year')}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded"
+                  >
+                    <option value="relevance">Relevance</option>
+                    <option value="year">Year (desc)</option>
+                  </select>
+                </div>
               </div>
             </div>
 

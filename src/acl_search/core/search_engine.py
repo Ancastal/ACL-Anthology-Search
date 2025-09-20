@@ -35,6 +35,8 @@ class SearchResult:
     # Optional enrichment
     doi: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    # Ranking score (BM25)
+    score: Optional[float] = None
 
 
 
@@ -279,7 +281,9 @@ class BooleanSearchEngine:
 
                fuzzy: bool = False,
 
-               fuzzy_threshold: int = 80) -> List[SearchResult]:
+               fuzzy_threshold: int = 80,
+
+               sort: str = "relevance") -> List[SearchResult]:
 
         """
 
@@ -313,9 +317,24 @@ class BooleanSearchEngine:
 
         parsed_query = self._parse_boolean_query(query)
 
-        results = []
+        # Prepare query tokens for scoring
+        token_pattern = re.compile(r"\w+")
+        query_tokens: List[str] = []
+        for t in parsed_query.get("terms", []):
+            for tok in token_pattern.findall(t.lower()):
+                if len(tok) > 1:
+                    query_tokens.append(tok)
+        # Deduplicate preserving order
+        seen_q = set()
+        query_tokens = [t for t in query_tokens if not (t in seen_q or seen_q.add(t))]
 
-        
+        results: List[SearchResult] = []
+        # BM25 accumulators across filtered docs
+        N = 0  # number of docs considered after filters
+        df: Dict[str, int] = {qt: 0 for qt in query_tokens}
+        doc_lens: Dict[str, int] = {}
+        candidates: List[Dict[str, Any]] = []
+        field_weights = {"title": 2.0, "abstract": 1.0, "authors": 0.5}
 
         for paper in self.papers:
 
@@ -332,6 +351,22 @@ class BooleanSearchEngine:
             # Extract text from specified fields
 
             text_data = self._extract_text_from_paper(paper, fields)
+
+            # Update population stats (only filtered docs)
+            N += 1
+            # Doc length is total token count across selected fields
+            token_count = 0
+            for ftext in text_data.values():
+                token_count += len(token_pattern.findall(ftext))
+            token_count = max(token_count, 1)
+            doc_lens[paper.id] = token_count
+
+            # Update document frequency for query tokens
+            if query_tokens:
+                combined = " ".join(text_data.values())
+                for qt in query_tokens:
+                    if qt in combined and re.search(rf"\b{re.escape(qt)}\b", combined):
+                        df[qt] = df.get(qt, 0) + 1
 
             
 
@@ -358,16 +393,69 @@ class BooleanSearchEngine:
                     match_fields=match_fields,
                     doi=getattr(paper, 'doi', None) if hasattr(paper, 'doi') else None,
                 )
+                # Defer scoring to after idf/avgdl computed
+                candidates.append({
+                    "result": result,
+                    "text_data": text_data,
+                    "doc_len": doc_lens[paper.id],
+                })
 
-                results.append(result)
+        if not candidates:
+            return []
 
-                
+        # Compute avgdl and idf
+        import math
+        avgdl = (sum(doc_lens.values()) / max(N, 1)) if N > 0 else 1.0
+        idf: Dict[str, float] = {}
+        for qt in query_tokens:
+            n_qt = df.get(qt, 0)
+            # BM25 IDF
+            try:
+                val = ( (N - n_qt + 0.5) / (n_qt + 0.5) )
+                idf_val = math.log(val + 1.0)
+            except Exception:
+                idf_val = 0.0
+            idf[qt] = max(idf_val, 0.0)
 
-                if limit and len(results) >= limit:
+        # BM25 parameters
+        k1 = 1.5
+        b = 0.75
 
-                    break
+        # Score and collect
+        for c in candidates:
+            res: SearchResult = c["result"]
+            text_data = c["text_data"]
+            doc_len = c["doc_len"]
+            score = 0.0
+            for qt in query_tokens:
+                tf_weighted = 0.0
+                for fname, ftext in text_data.items():
+                    w = field_weights.get(fname, 1.0)
+                    if qt in ftext:
+                        tf = len(re.findall(rf"\b{re.escape(qt)}\b", ftext))
+                        if tf:
+                            tf_weighted += w * tf
+                if tf_weighted == 0.0:
+                    continue
+                num = tf_weighted * (k1 + 1.0)
+                den = tf_weighted + k1 * (1.0 - b + b * (doc_len / max(avgdl, 1e-6)))
+                score += idf.get(qt, 0.0) * (num / max(den, 1e-6))
+            res.score = float(score)
+            results.append(res)
 
-        
+        # Sort
+        if sort == "year":
+            def year_key(r: SearchResult):
+                try:
+                    return int(r.year) if r.year else -10**9
+                except Exception:
+                    return -10**9
+            results.sort(key=year_key, reverse=True)
+        else:
+            results.sort(key=lambda r: (r.score or 0.0), reverse=True)
+
+        if limit:
+            results = results[:limit]
 
         return results
 

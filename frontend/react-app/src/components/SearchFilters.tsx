@@ -101,12 +101,14 @@ export default function SearchFiltersComponent({ filters, onFiltersChange, apiSt
                         type="number"
                         min={apiStats.year_range[0]}
                         max={apiStats.year_range[1]}
-                        value={filters.yearRange[0]}
+                        value={filters.yearRange?.[0] || ''}
                         onChange={(e) => {
                           const newMin = parseInt(e.target.value)
-                          updateFilters({
-                            yearRange: [newMin, filters.yearRange![1]]
-                          })
+                          if (!isNaN(newMin) && filters.yearRange) {
+                            updateFilters({
+                              yearRange: [newMin, filters.yearRange[1]]
+                            })
+                          }
                         }}
                         className="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
                       />
@@ -115,12 +117,14 @@ export default function SearchFiltersComponent({ filters, onFiltersChange, apiSt
                         type="number"
                         min={apiStats.year_range[0]}
                         max={apiStats.year_range[1]}
-                        value={filters.yearRange[1]}
+                        value={filters.yearRange?.[1] || ''}
                         onChange={(e) => {
                           const newMax = parseInt(e.target.value)
-                          updateFilters({
-                            yearRange: [filters.yearRange![0], newMax]
-                          })
+                          if (!isNaN(newMax) && filters.yearRange) {
+                            updateFilters({
+                              yearRange: [filters.yearRange[0], newMax]
+                            })
+                          }
                         }}
                         className="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
                       />

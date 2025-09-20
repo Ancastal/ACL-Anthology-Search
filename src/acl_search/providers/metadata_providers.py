@@ -17,6 +17,8 @@ except Exception:
     requests = None  # Degrade gracefully if requests is missing
 
 
+
+
 def _norm(s: Optional[str]) -> Optional[str]:
     return s.strip() if isinstance(s, str) else s
 
@@ -95,8 +97,10 @@ class ExternalMetadataProvider:
                                 aug = self._fetch_openalex(doi=doi_for_aug, title=title, authors=authors, year=year, max_related=max_related)
                             elif alt == "crossref":
                                 aug = self._fetch_crossref(doi=doi_for_aug, title=title, authors=authors, year=year, max_related=max_related)
-                            else:
+                            elif alt in {"semanticscholar", "s2"}:
                                 aug = self._fetch_semantic_scholar(doi=doi_for_aug, title=title, authors=authors, year=year, max_related=max_related)
+                            else:
+                                continue
                             if aug.get("related_works"):
                                 combined = data.get("related_works", []) + aug.get("related_works", [])
                                 # Deduplicate by title+year+doi
