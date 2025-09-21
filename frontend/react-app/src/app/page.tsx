@@ -6,7 +6,7 @@ import SearchFilters from '@/components/SearchFilters'
 import SearchResults from '@/components/SearchResults'
 import QueryBuilder from '@/components/QueryBuilder'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { Search, BookOpen, Database, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, BookOpen, Database, Clock, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 
 interface SearchFilters {
   fields: string[]
@@ -51,6 +51,7 @@ interface SearchResponse {
     unique_venues: number
     unique_authors: number
   }
+  semantic_method?: string | null
 }
 
 interface ApiStats {
@@ -58,6 +59,7 @@ interface ApiStats {
   year_range: [number, number]
   total_venues: number
   common_venues: string[]
+  experimental_search_available?: boolean
 }
 
 export default function Home() {
@@ -110,9 +112,9 @@ export default function Home() {
 
     checkApi()
     
-    // Poll every 5 seconds until API is ready
+    // Poll every 5 seconds until API is ready and experimental search is available
     const interval = setInterval(() => {
-      if (!apiReady) {
+      if (!apiReady || (apiReady && !apiStats?.experimental_search_available)) {
         checkApi()
       } else {
         clearInterval(interval)
@@ -120,7 +122,7 @@ export default function Home() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [apiReady])
+  }, [apiReady, apiStats?.experimental_search_available])
 
   // Generate COinS (ContextObjects in Spans) for Zotero detection
   const generateCOinS = (result: SearchResult): string => {
@@ -434,15 +436,28 @@ export default function Home() {
                 </div>
                 {/* Experimental Search Toggle */}
                 <div className="mt-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={experimentalMode}
-                      onChange={(e) => setExperimentalMode(e.target.checked)}
-                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
-                    />
+                  <label className={`flex items-center gap-3 ${apiStats?.experimental_search_available ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={experimentalMode}
+                        onChange={(e) => setExperimentalMode(e.target.checked)}
+                        disabled={!apiStats?.experimental_search_available}
+                        className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      {!apiStats?.experimental_search_available && apiReady && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Loader2 className="w-3 h-3 text-purple-600 animate-spin" />
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700">Experimental Search Pipeline</span>
+                      <span className={`text-sm ${apiStats?.experimental_search_available ? 'text-gray-700' : 'text-gray-500'}`}>
+                        Experimental Search Pipeline
+                        {!apiStats?.experimental_search_available && apiReady && (
+                          <span className="ml-1 text-xs">(Loading...)</span>
+                        )}
+                      </span>
                       <div className="relative group">
                         <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center cursor-help border border-gray-300 hover:bg-gray-200 transition-colors duration-200">
                           <span className="text-xs text-gray-600 font-bold">?</span>
@@ -454,15 +469,26 @@ export default function Home() {
                           <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                         </div>
                       </div>
-                      {experimentalMode && (
+                      {experimentalMode && apiStats?.experimental_search_available && (
                         <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
                           EXPERIMENTAL
+                        </span>
+                      )}
+                      {!apiStats?.experimental_search_available && apiReady && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          LOADING
                         </span>
                       )}
                     </div>
                   </label>
                   <p className="text-xs text-gray-500 mt-1 ml-7">
-                    Uses advanced AI techniques for improved search accuracy (ACL only)
+                    {apiStats?.experimental_search_available
+                      ? "Uses advanced AI techniques for improved search accuracy (ACL only)"
+                      : apiReady
+                        ? "Experimental search models are loading in the background..."
+                        : "Connecting to search API..."
+                    }
                   </p>
                 </div>
 
@@ -495,7 +521,22 @@ export default function Home() {
             )}
 
             {results && !loading && (
-              <SearchResults results={results} />
+              <>
+                {/* Semantic method display */}
+                {semanticEnabled && results.semantic_method && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-emerald-800">
+                        Semantic search using: {results.semantic_method === 'embeddings' ? 'AI embeddings' :
+                        results.semantic_method === 'fuzzy' ? 'fuzzy matching (fallback)' :
+                        results.semantic_method === 'jaccard' ? 'word overlap (fallback)' :
+                        results.semantic_method}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <SearchResults results={results} />
+              </>
             )}
 
             {!results && !loading && !error && (

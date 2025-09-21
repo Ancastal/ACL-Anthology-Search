@@ -56,6 +56,7 @@ class SearchResponse(BaseModel):
     total_count: int
     search_time: float
     stats: Dict[str, Any]
+    semantic_method: Optional[str] = None
 
 class ConvertQueryRequest(BaseModel):
     natural_query: str
@@ -115,7 +116,15 @@ async def startup_event():
         search_engine = BooleanSearchEngine()
         print("✅ ACL search engine loaded successfully!")
 
-        # Initialize experimental search engine
+        # Initialize arXiv engine first (faster loading)
+        try:
+            arxiv_engine = ArxivSearchEngine()
+            print("✅ arXiv search engine loaded successfully!")
+        except Exception as e:
+            print(f"⚠️  arXiv search engine failed to load: {e}")
+            arxiv_engine = None
+
+        # Initialize experimental search engine (slower loading)
         if EXPERIMENTAL_AVAILABLE:
             try:
                 experimental_engine = ExperimentalSearchEngine(search_engine.anthology)
@@ -125,14 +134,6 @@ async def startup_event():
                 experimental_engine = None
         else:
             experimental_engine = None
-
-        # Initialize arXiv engine
-        try:
-            arxiv_engine = ArxivSearchEngine()
-            print("✅ arXiv search engine loaded successfully!")
-        except Exception as e:
-            print(f"⚠️  arXiv search engine failed to load: {e}")
-            arxiv_engine = None
 
         # Initialize metadata provider after search engine to avoid import side effects
         global metadata_provider
@@ -264,6 +265,7 @@ async def search_papers(request: SearchRequest):
         results = all_results[:request.limit]
 
         # Optional semantic rerank or hybrid
+        semantic_method_used = None
         if request.semantic and results:
             try:
                 embedder = SemanticEmbedder(model_name=request.embedding_model)
@@ -275,11 +277,17 @@ async def search_papers(request: SearchRequest):
 
                 # Compute semantic similarity against title+abstract
                 sims: list[float] = []
+                semantic_methods = set()
                 for r in subset:
                     t = r.title or ""
                     a = r.abstract or ""
                     txt = f"{t}. {a}".strip()
-                    sims.append(embedder.similarity(qtext, txt))
+                    sim_score, method = embedder.similarity(qtext, txt)
+                    sims.append(sim_score)
+                    semantic_methods.add(method)
+
+                # Track which method was primarily used
+                semantic_method_used = list(semantic_methods)[0] if len(semantic_methods) == 1 else "mixed"
 
                 # Normalize BM25 and semantic to 0..1
                 bm25_scores = [float(r.score or 0.0) for r in subset]
@@ -394,7 +402,8 @@ async def search_papers(request: SearchRequest):
             results=result_dicts,
             total_count=len(results),
             search_time=search_time,
-            stats=stats
+            stats=stats,
+            semantic_method=semantic_method_used
         )
         
     except Exception as e:

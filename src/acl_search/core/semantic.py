@@ -36,9 +36,10 @@ class SemanticEmbedder:
         # Fallback: return None to indicate not available
         return None
 
-    def similarity(self, a: str, b: str) -> float:
+    def similarity(self, a: str, b: str) -> tuple[float, str]:
         """Compute semantic similarity.
 
+        Returns (similarity_score, method_used).
         If embeddings available, cosine similarity; otherwise fallback to
         token set overlap using RapidFuzz if present.
         """
@@ -49,20 +50,20 @@ class SemanticEmbedder:
                 v1, v2 = vecs[0], vecs[1]
                 # Since embeddings are normalized, dot = cosine
                 try:
-                    return float(np.dot(v1, v2))
+                    return float(np.dot(v1, v2)), "embeddings"
                 except Exception:
                     pass
         try:
             from rapidfuzz import fuzz  # type: ignore
             # Scale to 0..1
-            return float(fuzz.token_set_ratio(a, b) / 100.0)
+            return float(fuzz.token_set_ratio(a, b) / 100.0), "fuzzy"
         except Exception:
             # Minimal fallback: Jaccard over tokens
             set_a = set(w for w in a.lower().split())
             set_b = set(w for w in b.lower().split())
             if not set_a or not set_b:
-                return 0.0
+                return 0.0, "jaccard"
             inter = len(set_a & set_b)
             union = len(set_a | set_b)
-            return inter / union if union else 0.0
+            return (inter / union if union else 0.0), "jaccard"
 

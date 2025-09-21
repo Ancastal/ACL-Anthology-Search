@@ -22,6 +22,14 @@ from acl_anthology import Anthology
 from rapidfuzz import fuzz
 from .search_engine import SearchResult
 
+# Language detection
+try:
+    from langdetect import detect, LangDetectError
+    LANGUAGE_DETECTION_AVAILABLE = True
+except ImportError:
+    LANGUAGE_DETECTION_AVAILABLE = False
+    print("⚠️  Language detection not available. Install with: pip install langdetect")
+
 # Optional imports for experimental features
 try:
     from spellchecker import SpellChecker
@@ -111,6 +119,26 @@ class ExperimentalSearchEngine:
         }
 
         self._load_models()
+
+    def _is_english_or_italian(self, text: str) -> bool:
+        """
+        Check if text is primarily in English or Italian
+        """
+        if not LANGUAGE_DETECTION_AVAILABLE or not text or len(text.strip()) < 10:
+            return True  # Default to include if we can't detect or text is too short
+
+        try:
+            # Clean text for language detection
+            clean_text = re.sub(r'[^\w\s]', ' ', text)
+            clean_text = ' '.join(clean_text.split()[:100])  # Limit to first 100 words for speed
+
+            if len(clean_text.strip()) < 5:
+                return True
+
+            detected_lang = detect(clean_text)
+            return detected_lang in ['en', 'it']
+        except (LangDetectError, Exception):
+            return True  # Default to include if detection fails
 
     def _initialize_index(self):
         """Initialize paper index for search"""
@@ -211,26 +239,55 @@ class ExperimentalSearchEngine:
 
     def bm25_fuzzy_retrieve(self, query: str, limit: int = 100) -> List[Tuple[int, float]]:
         """
-        Step 2: BM25 + fuzzy matching retrieval
+        Step 2: BM25 + fuzzy matching retrieval (optimized)
         Returns list of (paper_index, score) tuples
         """
+        import random
         candidates = []
+        found_indices = set()  # O(1) lookup for candidate tracking
 
-        # BM25 retrieval
+        # BM25 retrieval - only extract top scoring papers
         if self.bm25_index:
             query_tokens = query.lower().split()
             bm25_scores = self.bm25_index.get_scores(query_tokens)
 
-            for idx, score in enumerate(bm25_scores):
-                if score > 0:
-                    candidates.append((idx, score, 'bm25'))
+            # Create list of (index, score) pairs and sort by score
+            scored_papers = [(idx, score) for idx, score in enumerate(bm25_scores) if score > 0]
+            scored_papers.sort(key=lambda x: x[1], reverse=True)
 
-        # Fuzzy matching fallback/enhancement
+            # Take only top BM25 results (much faster than processing all)
+            top_bm25_limit = min(limit * 2, len(scored_papers))  # At most 2x the final limit
+            for idx, score in scored_papers[:top_bm25_limit]:
+                candidates.append((idx, score, 'bm25'))
+                found_indices.add(idx)
+
+        # Early termination check
+        if len(candidates) >= limit:
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            return candidates[:limit]
+
+        # Fuzzy matching on a sample - much faster than checking all papers
         query_lower = query.lower()
-        for idx, paper in enumerate(self.papers):
+        remaining_needed = limit - len(candidates)
+
+        # Sample papers for fuzzy matching (instead of checking all 113k papers)
+        sample_size = min(3000, len(self.papers))  # Only check 3k papers max
+        paper_indices = list(range(len(self.papers)))
+        sampled_indices = random.sample(paper_indices, sample_size)
+
+        fuzzy_candidates_found = 0
+        max_fuzzy_candidates = remaining_needed * 3  # Allow some buffer
+
+        for idx in sampled_indices:
             # Skip if already found by BM25
-            if any(cand[0] == idx for cand in candidates):
+            if idx in found_indices:
                 continue
+
+            # Early termination for fuzzy matching
+            if fuzzy_candidates_found >= max_fuzzy_candidates:
+                break
+
+            paper = self.papers[idx]
 
             # Fuzzy match against title and abstract
             title_score = fuzz.partial_ratio(query_lower, paper['title'].lower())
@@ -241,6 +298,8 @@ class ExperimentalSearchEngine:
 
             if fuzzy_score > 60:  # Threshold for fuzzy matching
                 candidates.append((idx, fuzzy_score / 100.0, 'fuzzy'))
+                found_indices.add(idx)
+                fuzzy_candidates_found += 1
 
         # Sort by score and return top candidates
         candidates.sort(key=lambda x: x[1], reverse=True)
@@ -263,7 +322,7 @@ class ExperimentalSearchEngine:
             candidates = []
 
             # Sample papers for semantic search (can be optimized with vector DB)
-            for idx, paper in enumerate(self.papers[:1000]):  # Limit for demo
+            for idx, paper in enumerate(self.papers[:200]):  # Further reduced for performance
                 text = f"{paper['title']} {paper['abstract'][:200]}"  # Truncate abstract
                 paper_embedding = self.embedding_model.encode([text])
 
@@ -296,7 +355,7 @@ class ExperimentalSearchEngine:
             rerank_inputs = []
             candidate_papers = []
 
-            for idx, score, stage in candidates[:50]:  # Re-rank top 50
+            for idx, score, stage in candidates[:20]:  # Re-rank top 20 for performance
                 paper = self.papers[idx]
                 text = f"{paper['title']} {paper['abstract'][:300]}"  # Limit text length
                 rerank_inputs.append([query, text])
@@ -375,18 +434,31 @@ class ExperimentalSearchEngine:
         if not query.strip():
             return []
 
-        start_time = time.time()
+        total_start = time.time()
+        print(f"🔬 Starting experimental search for: '{query}'")
 
         # Stage 1: Spell correction and query expansion
+        stage1_start = time.time()
         expanded_query = self.spell_correct_and_expand(query)
+        stage1_time = time.time() - stage1_start
+        print(f"  📝 Stage 1 (Spell correction & expansion): {stage1_time:.3f}s")
+        if expanded_query != query:
+            print(f"     Query expanded: '{query}' → '{expanded_query}'")
 
         # Stage 2: BM25 + fuzzy retrieval
+        stage2_start = time.time()
         bm25_candidates = self.bm25_fuzzy_retrieve(expanded_query, limit * 3)
+        stage2_time = time.time() - stage2_start
+        print(f"  🔍 Stage 2 (BM25 + fuzzy retrieval): {stage2_time:.3f}s → {len(bm25_candidates)} candidates")
 
         # Stage 3: Embedding-based retrieval
+        stage3_start = time.time()
         semantic_candidates = self.embedding_retrieve(query, limit * 2)
+        stage3_time = time.time() - stage3_start
+        print(f"  🧠 Stage 3 (Semantic embedding retrieval): {stage3_time:.3f}s → {len(semantic_candidates)} candidates")
 
         # Merge candidates (avoid duplicates)
+        merge_start = time.time()
         all_candidates = {}
 
         # Add BM25/fuzzy candidates
@@ -405,18 +477,48 @@ class ExperimentalSearchEngine:
 
         # Convert to candidate list
         merged_candidates = [(idx, score, stage) for idx, (score, stage) in all_candidates.items()]
+        merge_time = time.time() - merge_start
+        print(f"  🔗 Candidate merging: {merge_time:.3f}s → {len(merged_candidates)} total candidates")
 
         # Stage 4: Neural re-ranking
-        final_results = self.neural_rerank(merged_candidates, query, limit)
+        stage4_start = time.time()
+        final_results = self.neural_rerank(merged_candidates, query, limit * 2)  # Get more for language filtering
+        stage4_time = time.time() - stage4_start
+        print(f"  🎯 Stage 4 (Neural re-ranking): {stage4_time:.3f}s → {len(final_results)} final results")
 
         # Apply filters if provided
         if filters:
+            filter_start = time.time()
             final_results = self._apply_filters(final_results, filters)
+            filter_time = time.time() - filter_start
+            print(f"  🔧 Filter application: {filter_time:.3f}s → {len(final_results)} filtered results")
 
-        search_time = time.time() - start_time
-        print(f"🔬 Experimental search completed in {search_time:.3f}s")
+        # Language filtering - exclude non-English/Italian papers
+        lang_filter_start = time.time()
+        before_lang_filter = len(final_results)
+        language_filtered_results = []
+        excluded_count = 0
 
-        return final_results[:limit]
+        for result in final_results:
+            title_text = result.title or ""
+            abstract_text = result.abstract or ""
+
+            # Check if title or abstract is primarily English or Italian
+            title_ok = self._is_english_or_italian(title_text)
+            abstract_ok = self._is_english_or_italian(abstract_text) if abstract_text else True
+
+            if title_ok and abstract_ok:
+                language_filtered_results.append(result)
+            else:
+                excluded_count += 1
+
+        lang_filter_time = time.time() - lang_filter_start
+        print(f"  🌐 Language filtering: {lang_filter_time:.3f}s → {len(language_filtered_results)} results, {excluded_count} excluded (non-English/Italian)")
+
+        total_time = time.time() - total_start
+        print(f"🔬 Experimental search completed in {total_time:.3f}s")
+
+        return language_filtered_results[:limit]
 
     def _apply_filters(self, results: List[ExperimentalSearchResult], filters: Dict[str, Any]) -> List[ExperimentalSearchResult]:
         """Apply search filters to results"""
