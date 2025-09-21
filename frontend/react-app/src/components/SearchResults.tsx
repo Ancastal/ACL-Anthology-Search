@@ -104,9 +104,9 @@ function ResultCard({ result, index, showAbstract, onAuthorClick }: {
     // URL to paper
     coins['rft_id'] = result.url
     
-    // Abstract if available
+    // Abstract if available - provide full abstract for Zotero
     if (result.abstract) {
-      coins['rft.description'] = result.abstract.substring(0, 500) // Truncate for URL length
+      coins['rft.description'] = result.abstract
     }
     
     // Manual URL encoding to ensure proper format
