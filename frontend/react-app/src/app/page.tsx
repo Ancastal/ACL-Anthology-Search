@@ -75,7 +75,8 @@ export default function Home() {
   const [searchEngine, setSearchEngine] = useState<string>('unknown')
   const [queryBuilderOpen, setQueryBuilderOpen] = useState(false)
   const [searchSources, setSearchSources] = useState<string[]>(['acl'])
-  
+  const [experimentalMode, setExperimentalMode] = useState<boolean>(false)
+
   const [filters, setFilters] = useState<SearchFilters>({
     fields: ['title', 'abstract', 'authors'],
     yearRange: null,
@@ -176,7 +177,8 @@ export default function Home() {
         semantic: semanticEnabled,
         semantic_mode: semanticMode,
         semantic_top_k: semanticTopK,
-        sources: searchSources
+        sources: searchSources,
+        experimental: experimentalMode
       }
 
       const response = await fetch('http://127.0.0.1:8000/search', {
@@ -430,6 +432,40 @@ export default function Home() {
                     Select one or both sources. arXiv includes pre-prints from all scientific fields.
                   </p>
                 </div>
+                {/* Experimental Search Toggle */}
+                <div className="mt-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={experimentalMode}
+                      onChange={(e) => setExperimentalMode(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700">Experimental Search Pipeline</span>
+                      <div className="relative group">
+                        <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center cursor-help border border-gray-300 hover:bg-gray-200 transition-colors duration-200">
+                          <span className="text-xs text-gray-600 font-bold">?</span>
+                        </div>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 ease-out bg-gray-900 text-white text-sm rounded py-2 px-3 z-50 shadow-xl pointer-events-none">
+                          <div className="w-96 text-center">
+                            Advanced IR pipeline with spell correction, query expansion, BM25 + fuzzy matching, semantic embeddings, and neural re-ranking
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                      {experimentalMode && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                          EXPERIMENTAL
+                        </span>
+                      )}
+                    </div>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1 ml-7">
+                    Uses advanced AI techniques for improved search accuracy (ACL only)
+                  </p>
+                </div>
+
                 {/* Sort controls */}
                 <div className="mt-4 flex items-center gap-3 ml-1">
                   <label className="text-sm text-gray-700">Sort by</label>

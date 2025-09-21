@@ -6,3 +6,10 @@ openai>=1.0.0
 fastapi>=0.104.0
 uvicorn>=0.24.0
 requests>=2.31.0
+
+# Experimental search pipeline dependencies (optional)
+pyspellchecker>=0.7.0
+rank-bm25>=0.2.2
+sentence-transformers>=2.2.0
+transformers>=4.30.0
+torch>=2.0.0

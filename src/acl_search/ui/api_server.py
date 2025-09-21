@@ -13,6 +13,15 @@ from acl_search.core.semantic import SemanticEmbedder
 from acl_search.core.arxiv_search import ArxivSearchEngine
 from acl_search.providers.metadata_providers import ExternalMetadataProvider
 
+# Import experimental search engine
+try:
+    from acl_search.core.experimental_search import ExperimentalSearchEngine
+    EXPERIMENTAL_AVAILABLE = True
+except ImportError as e:
+    EXPERIMENTAL_AVAILABLE = False
+    print(f"⚠️  Experimental search engine not available: {e}")
+    print("Install dependencies with: pip install pyspellchecker rank-bm25 sentence-transformers transformers torch")
+
 # OpenAI integration
 try:
     from openai import OpenAI
@@ -39,6 +48,8 @@ class SearchRequest(BaseModel):
     include_metadata: bool = False
     max_related: int = 3
     sources: List[str] = ["acl"]  # "acl", "arxiv", or both
+    # Experimental search pipeline
+    experimental: bool = False  # Use experimental IR pipeline
 
 class SearchResponse(BaseModel):
     results: List[Dict[str, Any]]
@@ -73,6 +84,7 @@ class AuthorResponse(BaseModel):
 
 # Global search engine instances
 search_engine = None
+experimental_engine = None
 arxiv_engine = None
 metadata_provider: Optional[ExternalMetadataProvider] = None
 
@@ -99,9 +111,20 @@ async def startup_event():
     print("🚀 Starting up ACL Anthology Search API...")
     
     def load_engine():
-        global search_engine, arxiv_engine
+        global search_engine, experimental_engine, arxiv_engine
         search_engine = BooleanSearchEngine()
         print("✅ ACL search engine loaded successfully!")
+
+        # Initialize experimental search engine
+        if EXPERIMENTAL_AVAILABLE:
+            try:
+                experimental_engine = ExperimentalSearchEngine(search_engine.anthology)
+                print("✅ Experimental search engine loaded successfully!")
+            except Exception as e:
+                print(f"⚠️  Experimental search engine failed to load: {e}")
+                experimental_engine = None
+        else:
+            experimental_engine = None
 
         # Initialize arXiv engine
         try:
@@ -149,12 +172,19 @@ async def get_stats():
         year_range = search_engine.get_year_range()
         venues = search_engine.get_available_venues()
         
-        return {
+        stats = {
             "total_papers": len(search_engine.papers),
             "year_range": year_range,
             "total_venues": len(venues),
-            "common_venues": sorted([v.upper() for v in venues if any(cv in v.lower() for cv in ["acl", "emnlp", "naacl", "eacl", "coling"])])[:20]
+            "common_venues": sorted([v.upper() for v in venues if any(cv in v.lower() for cv in ["acl", "emnlp", "naacl", "eacl", "coling"])])[:20],
+            "experimental_search_available": experimental_engine is not None
         }
+
+        # Add experimental engine stats if available
+        if experimental_engine:
+            stats["experimental_features"] = experimental_engine.get_stats()
+
+        return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
@@ -183,15 +213,27 @@ async def search_papers(request: SearchRequest):
 
         # Search ACL Anthology if requested
         if "acl" in request.sources:
-            acl_results = search_engine.search(
-                query=request.query,
-                fields=request.fields,
-                filters=filters,
-                limit=request.limit,
-                fuzzy=request.fuzzy,
-                fuzzy_threshold=request.fuzzy_threshold,
-                sort=request.sort
-            )
+            # Route to experimental or standard engine
+            if request.experimental and experimental_engine:
+                print("🔬 Using experimental search pipeline")
+                acl_results = experimental_engine.search(
+                    query=request.query,
+                    fields=request.fields,
+                    filters=filters,
+                    limit=request.limit
+                )
+            elif request.experimental and not experimental_engine:
+                raise HTTPException(status_code=503, detail="Experimental search engine not available")
+            else:
+                acl_results = search_engine.search(
+                    query=request.query,
+                    fields=request.fields,
+                    filters=filters,
+                    limit=request.limit,
+                    fuzzy=request.fuzzy,
+                    fuzzy_threshold=request.fuzzy_threshold,
+                    sort=request.sort
+                )
             all_results.extend(acl_results)
 
         # Search arXiv if requested and available
