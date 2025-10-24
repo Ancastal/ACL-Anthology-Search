@@ -2,6 +2,8 @@
 
 A modern web application for searching and filtering papers from the ACL Anthology using boolean keywords across multiple fields. Features a Next.js frontend with Python backend API.
 
+<center><img width="700" height="600" alt="image" src="https://github.com/user-attachments/assets/af86f620-da21-4d22-bd04-5e8f305745cd" /></center>
+
 ## Features
 
 ### 🔍 Advanced Search
